@@ -54,6 +54,10 @@ class Button:
             return self.x < pos[0] < self.x + self.size[0] and self.y < pos[1] < self.y + \
                    self.size[1]
 
+    def update_text(self, text):
+        self.text = text
+        self.width = self.font.size(self.text)[0] + self.padding * 2
+        self.height = self.font.size(self.text)[1] + self.padding * 2
 
 class ImageButton:
     def __init__(self, x, y, image, hover_image, size, center_coordinates=False, padding=0, outline=0,
@@ -93,6 +97,7 @@ class ImageButton:
 
     def toggle(self):
         self.replace = not self.replace
+
 
     # Returns true if the given pos (either tuple or list) is over the button
     def isOver(self, pos):
