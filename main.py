@@ -64,6 +64,10 @@ class GameStates:
         self.money_font = pygame.font.SysFont("arial", 25)
         self.money_text = self.money_font.render("$0", True, BLACK)
         self.money = 0
+        self.viscord = False
+        self.terminal = False
+        self.browser = False
+
     def state_manager(self):
 
         if self.state == "intro":
@@ -76,6 +80,12 @@ class GameStates:
             self.settings()
         elif self.state == "gameOver":
             game_over()
+        elif self.state == "viscord":
+            self.viscord()
+        elif self.state == "terminal":
+            self.terminal()
+        elif self.state == "browser":
+            self.browser()
 
     def intro(self):
         pygame.display.set_caption("Hacker Simulator")
@@ -143,6 +153,13 @@ class GameStates:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
                     self.state = "gameOver"
+                if self.viscord_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    self.viscord = not self.viscord
+                if self.terminal_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    self.state = "terminal"
+                if self.browser_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    self.state = "browser"
+
         display.fill(BG)
         display.blit(self.desktop, (0, 0))
         menu = pygame.rect.Rect(-3, HEIGHT/2 - 150, 75, 300)
@@ -157,7 +174,25 @@ class GameStates:
         self.browser_button.draw(display, pygame.mouse.get_pos())
         self.money_text = self.money_font.render("$" + str(self.money), True, BLACK)
         display.blit(self.money_text, (10, 0))
+
+        if self.viscord:
+            viscord_app = pygame.rect.Rect(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700)
+            pygame.draw.rect(display, GREY20, viscord_app, )
+            viscord_title = pygame.rect.Rect(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 50)
+            pygame.draw.rect(display, BLACK, viscord_title, 3)
+            viscord_font = pygame.font.Font("assets/fonts/main.otf", 20)
+            viscord_title_text = viscord_font.render("viscord", True, LIGHT_GREY)
+            display.blit(viscord_title_text, (WIDTH / 2 + 150 + (800 / 2 - viscord_title_text.get_width() / 2), HEIGHT / 2 - 500 + (50 / 2 - viscord_title_text.get_height() / 2)))
+            viscord_sided_menu = pygame.rect.Rect(WIDTH / 2 + 150, HEIGHT / 2 - 500 + 47, 250, 653)
+            pygame.draw.rect(display, BLACK, viscord_sided_menu, 3)
+            # help contact will be at the top bottom viscord sided menu
+            viscord_help_contact = button.Button(viscord_sided_menu.bottomleft[0]+3,viscord_sided_menu.bottomleft[1]-50, "HELP", BLACK, WHITE, viscord_font,False, GREEN,(244,47))
+            viscord_help_contact.draw(display, pygame.mouse.get_pos())
+
+
         pygame.display.update()
+
+
 
 # main_loop
 def main():
