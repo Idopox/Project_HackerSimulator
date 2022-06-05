@@ -58,15 +58,20 @@ class GameStates:
 
         # training
         self.desktop = pygame.image.load("assets/images/desktop.jpg")
-        self.viscord_button = button.ImageButton(32, HEIGHT / 2 - 100, "assets/images/viscord.png","assets/images/viscord_hover.png", (50, 50), True)
-        self.terminal_button = button.ImageButton(32, HEIGHT / 2, "assets/images/terminal.png", "assets/images/terminal_hover.png", (50, 50), True)
-        self.browser_button = button.ImageButton(32, HEIGHT / 2 + 100, "assets/images/browser.png", "assets/images/browser_hover.png", (50, 50), True)
+        self.viscord_button = button.ImageButton(32, HEIGHT / 2 - 100, "assets/images/viscord.png",
+                                                 "assets/images/viscord_hover.png", (50, 50), True)
+        self.terminal_button = button.ImageButton(32, HEIGHT / 2, "assets/images/terminal.png",
+                                                  "assets/images/terminal_hover.png", (50, 50), True)
+        self.browser_button = button.ImageButton(32, HEIGHT / 2 + 100, "assets/images/browser.png",
+                                                 "assets/images/browser_hover.png", (50, 50), True)
         self.money_font = pygame.font.SysFont("arial", 25)
         self.money_text = self.money_font.render("$0", True, BLACK)
         self.money = 0
         self.viscord = False
         self.terminal = False
         self.browser = False
+        self.curr_contact = "None"
+        self.viscord_window = Viscord(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, "viscord", GREY20, LIGHT_GREY)
 
     def state_manager(self):
 
@@ -159,10 +164,16 @@ class GameStates:
                     self.state = "terminal"
                 if self.browser_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
                     self.state = "browser"
+                # if self.viscord:
+                # if viscord_help_contact.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                # if self.curr_contact != "Help":
+                #    self.curr_contact = "Help"
+                # else:
+                # self.curr_contact = "None"
 
         display.fill(BG)
         display.blit(self.desktop, (0, 0))
-        menu = pygame.rect.Rect(-3, HEIGHT/2 - 150, 75, 300)
+        menu = pygame.rect.Rect(-3, HEIGHT / 2 - 150, 75, 300)
         pygame.draw.rect(display, BLACK, menu, 3)
         upper_menu = pygame.rect.Rect(0, -3, 1920, 33)
         pygame.draw.rect(display, BLACK, upper_menu, 3)
@@ -176,21 +187,95 @@ class GameStates:
         display.blit(self.money_text, (10, 0))
 
         if self.viscord:
-            viscord_app = pygame.rect.Rect(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700)
-            pygame.draw.rect(display, GREY20, viscord_app, )
-            viscord_title = pygame.rect.Rect(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 50)
-            pygame.draw.rect(display, BLACK, viscord_title, 3)
-            viscord_font = pygame.font.Font("assets/fonts/main.otf", 20)
-            viscord_title_text = viscord_font.render("viscord", True, LIGHT_GREY)
-            display.blit(viscord_title_text, (WIDTH / 2 + 150 + (800 / 2 - viscord_title_text.get_width() / 2), HEIGHT / 2 - 500 + (50 / 2 - viscord_title_text.get_height() / 2)))
-            viscord_sided_menu = pygame.rect.Rect(WIDTH / 2 + 150, HEIGHT / 2 - 500 + 47, 250, 653)
-            pygame.draw.rect(display, BLACK, viscord_sided_menu, 3)
-            # help contact will be at the top bottom viscord sided menu
-            viscord_help_contact = button.Button(viscord_sided_menu.bottomleft[0]+3,viscord_sided_menu.bottomleft[1]-50, "HELP", BLACK, WHITE, viscord_font,False, GREEN,(244,47))
-            viscord_help_contact.draw(display, pygame.mouse.get_pos())
 
+            self.viscord_window.draw(display)
+            self.viscord_window.move()
+
+            if self.curr_contact == "Help":
+                help_info_rect = pygame.rect.Rect(viscord_sided_menu.topright[0], viscord_sided_menu.topright[1],
+                                                  250 - 6, 653 - 50)
+                pygame.draw.rect(display, BLACK, help_info_rect)
 
         pygame.display.update()
+
+
+# general application window parent class
+class Application:
+    def __init__(self, x, y, w, h, title, color, header_color):
+        self.x = x
+        self.y = y
+        self.w = w
+        self.h = h
+        self.title = title
+        self.color = color
+        self.header_color = header_color
+        self.header_font = pygame.font.Font("assets/fonts/main.otf", 20)
+        self.header_text = self.header_font.render(self.title, True, BLACK)
+        self.header_rect = pygame.rect.Rect(self.x, self.y, self.w, 50)
+        self.header_outline = pygame.rect.Rect(self.x, self.y, self.w, 50)
+        self.application = pygame.rect.Rect(self.x, self.y, self.w, self.h)
+        self.application_outline = pygame.rect.Rect(self.x, self.y, self.w, self.h)
+        self.rects = []
+        self.rects.append(self.application)
+        self.rects.append(self.application_outline)
+        self.rects.append(self.header_rect)
+        self.rects.append(self.header_outline)
+        self.buttons = []
+
+    def draw(self, display):
+        pygame.draw.rect(display, self.color, self.application)
+        pygame.draw.rect(display, BLACK, self.application_outline, 3)
+        pygame.draw.rect(display, self.header_color, self.header_rect)
+        pygame.draw.rect(display, BLACK, self.header_outline, 3)
+        display.blit(self.header_text, (self.x + (self.w / 2 - self.header_text.get_width() / 2),
+                                        self.y + (self.header_rect.height / 2 - self.header_text.get_height() / 2)))
+
+    # move the whole window with all the rects according to the mouse position while dragging the header rect with the mouse left click pressed down
+    def move(self):
+        if pygame.mouse.get_pressed()[0]:
+            if self.header_rect.collidepoint(pygame.mouse.get_pos()):
+                self.x = pygame.mouse.get_pos()[0] - self.header_rect.width / 2
+                self.y = pygame.mouse.get_pos()[1] - self.header_rect.height / 2
+                for rect in self.rects:
+                    rect.x = self.x
+                    rect.y = self.y
+                for button in self.buttons:
+                    button.x = self.x
+                    button.y = self.y
+                self.header_text = self.header_font.render(self.title, True, BLACK)
+                self.header_rect.x = self.x
+                self.header_rect.y = self.y
+
+
+class Viscord(Application):
+    def __init__(self, x, y, w, h, title, color, header_color):
+        super().__init__(x, y, w, h, title, color, header_color)
+        self.sided_menu = pygame.rect.Rect(self.x, self.y + self.header_rect.height, 250, self.h - self.header_rect.height)
+        self.rects.append(self.sided_menu)
+        self.contact_chat_rect = pygame.rect.Rect(self.sided_menu.topright[0], self.sided_menu.top,
+                                                  self.application.right - self.sided_menu.right - 3,
+                                                  self.application.bottom - self.header_rect.bottom - 3)
+        self.help_contact = button.Button(self.sided_menu.bottomleft[0] + 3,
+                                          self.sided_menu.bottomleft[1] - 50, "HELP", BLACK, WHITE,
+                                          self.header_font, False, GREEN, (244, 47))
+        self.rects.append(self.contact_chat_rect)
+        self.buttons.append(self.help_contact)
+
+    def draw(self, display):
+        super().draw(display)
+        pygame.draw.rect(display, BLACK, self.sided_menu, 3)
+        pygame.draw.rect(display, LIGHT_SKY_BLUE_4, self.contact_chat_rect)
+        self.help_contact.draw(display, pygame.mouse.get_pos())
+        pygame.display.update()
+
+    def move(self):
+        super().move()
+        self.sided_menu.x = self.x
+        self.sided_menu.y = self.y + self.header_rect.height
+        self.contact_chat_rect.x = self.sided_menu.topright[0]
+        self.contact_chat_rect.y = self.sided_menu.top
+        self.help_contact.x = self.sided_menu.bottomleft[0] + 3
+        self.help_contact.y = self.sided_menu.bottomleft[1] - 50
 
 
 
