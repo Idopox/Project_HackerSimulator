@@ -312,6 +312,7 @@ class Terminal(Application):
         self.history = []
         self.linebreak = 0
         self.active_objective = None
+        self.display = display
 
     def draw(self, display):
         super().draw(display)
@@ -360,30 +361,37 @@ class Terminal(Application):
         input = self.input
         self.input = ""
         if self.connected:
-            if input == "exit":
+            if input == "":
+                pass
+            elif input == "exit":
                 self.connected = False
-            if input[:2] == "ls " and input[2:] in self.active.objective.get_folders():
-                self.print_folder_contents(display, input[2:])
-        if input == "":
-            return
-        elif input[:5] == "nmap " and input[5:] in self.game.objectives.get_objectives_ips():
-            self.nmap(input[5:])
-        elif input[:len("smb445exploit ")] == "smb445exploit " and input[
-                                                                   len("smb445exploit "):] in self.game.objectives.get_objectives_ips():
-            self.connect(input[len("smb445exploit"):])
-        elif input[:len("http80exploit ")] == "http80exploit " and input[
-                                                                    len("http80exploit "):] in self.game.objectives.get_objectives_ips():
-            self.connect(input[len("http80exploit"):])
-        elif input[:len("ftp21exploit ")] == "ftp21exploit " and input[
-                                                                 len("ftp21exploit "):] in self.game.objectives.get_objectives_ips():
-            self.connect(input[len("ftp21exploit"):])
-        elif input[:len("ssh22exploit ")] == "ssh22exploit " and input[
-                                                                 len("ssh22exploit "):] in self.game.objectives.get_objectives_ips():
-            self.connect(input[len("ssh22exploit"):])
+            elif input == "ls":
+                self.print_folders()
+            elif input[:3] == "ls " and input[2:] in self.active_objective.get_folders():
+                self.print_folder_contents(display, input[3:])
+            elif input[:4] == "cat " and input[3:] in self.active_objective.get_files():
+                self.print_file_contents(display, input[4:])
+            else:
+                self.write("Command not found")
         else:
-            self.history.append(
-                (("\"" + str(input) + "\"  is not recognized as a command"), self.input_rect.y, self.input_rect.x))
-            self.linedown()
+            if input == "":
+                return
+            elif input[:5] == "nmap " and input[5:] in self.game.objectives.get_objectives_ips():
+                self.nmap(input[5:])
+            elif input[:len("smb445exploit ")] == "smb445exploit " and input[
+                                                                       len("smb445exploit "):] in self.game.objectives.get_objectives_ips():
+                self.connect(input[len("smb445exploit "):])
+            elif input[:len("http80exploit ")] == "http80exploit " and input[
+                                                                        len("http80exploit "):] in self.game.objectives.get_objectives_ips():
+                self.connect(input[len("http80exploit "):])
+            elif input[:len("ftp21exploit ")] == "ftp21exploit " and input[
+                                                                     len("ftp21exploit "):] in self.game.objectives.get_objectives_ips():
+                self.connect(input[len("ftp21exploit "):])
+            elif input[:len("ssh22exploit ")] == "ssh22exploit " and input[
+                                                                     len("ssh22exploit "):] in self.game.objectives.get_objectives_ips():
+                self.connect(input[len("ssh22exploit "):])
+            else:
+                self.write("Command not found")
 
     def nmap(self, input):
         self.history.append(((self.user_text), self.input_rect.y, self.input_rect.x))
@@ -405,19 +413,28 @@ class Terminal(Application):
         self.connected = True
         self.active_objective = self.game.objectives.get_objective_by_ip(input)
         self.clear_console()
-        self.history.append((("Connecting to " + input), self.input_rect.y, self.x))
+        self.write("Connecting to " + input)
+        time.sleep(1)
+        self.write("Connection Established")
+        time.sleep(1)
         self.linedown()
-        time.sleep(0.5)
-        self.history.append((("Connection established"), self.input_rect.y, self.x))
+        self.print_folders()
+
+    def write(self, text):
+        self.history.append(((text), self.input_rect.y, self.x))
         self.linedown()
+        self.draw(self.display)
+
+    def print_folders(self):
         for item in self.active_objective.get_folders_names():
-            self.history.append((str(item), self.input_rect.y, self.x))
-            self.linedown()
+            self.write(str(item))
 
     def print_folder_contents(self, folder):
         for item in self.active_objective.folders[folder].get_folder_contents(folder):
-            self.history.append((item, self.input_rect.y, self.x))
-            self.linedown()
+            self.write(str(item))
+
+    def print_file_contents(self, file):
+        self.write(self.active_objective.files[file].content)
 
     def linedown(self, space=50):
         self.linebreak += 1
@@ -432,6 +449,7 @@ class Terminal(Application):
     def clear_console(self):
         self.history = []
         self.linebreak = 0
+        self.input_rect.y = self.IO_rect.y
 
 
 def genIPv4():
