@@ -9,6 +9,7 @@ from pygame import mixer
 
 from utils import button
 from utils.colors import *
+import threading
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -21,8 +22,8 @@ RANDOM_WORDS_LIST = ["ink", "historical", "caption", "medical", "garrulous", "sn
 SERVICES = ["http", "ssh", "ftp", "smb"]
 pygame.init()
 display = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.scrap.init()
 clock = pygame.time.Clock()
-
 ARIAL_FONT = pygame.font.SysFont("arial", 25)
 
 
@@ -159,18 +160,26 @@ class GameStates:
             if event.type == pygame.QUIT:
                 self.state = "gameOver"
             if event.type == pygame.MOUSEBUTTONDOWN:
-                if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    self.state = "gameOver"
-                if self.viscord_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    self.viscord = not self.viscord
-                if self.terminal_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    self.terminal = not self.terminal
-                if self.browser_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    self.browser = not self.browser
-                if self.terminal_window.IO_rect.collidepoint((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    self.terminal_window.active = True
-                else:
-                    self.terminal_window.active = False
+                if event.button == 1:
+                    if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.state = "gameOver"
+                    if self.viscord_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.viscord = not self.viscord
+                    if self.terminal_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.terminal = not self.terminal
+                    if self.browser_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.browser = not self.browser
+                    if self.terminal_window.IO_rect.collidepoint((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.terminal_window.active = True
+                    else:
+                        self.terminal_window.active = False
+                if event.button == 3:
+                    if self.terminal_window.active:
+                        text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
+                        if text:
+                            self.terminal_window.active_input(display, text)
+
+
             if event.type == pygame.KEYDOWN:
                 if self.terminal_window.active:
                     self.terminal_window.active_input(display, event)
@@ -304,7 +313,7 @@ class Terminal(Application):
                                            self.application.height - self.header_rect.height)
         self.rects.append(self.input_rect)
         self.user_text = r'root@CoolHacker:~$ '
-        self.base_font = pygame.font.Font("assets/fonts/terminal.ttf", 17)
+        self.base_font = pygame.font.Font("assets/fonts/terminal.ttf", 14)
         self.input_text = self.base_font.render(self.user_text, True, WHITE)
         self.IO_rect = pygame.rect.Rect(self.input_rect)
         self.active = False
@@ -313,6 +322,7 @@ class Terminal(Application):
         self.linebreak = 0
         self.active_objective = None
         self.display = display
+        self.downloading = False
 
     def draw(self, display):
         super().draw(display)
@@ -331,7 +341,7 @@ class Terminal(Application):
                 self.IO_rect.x = self.x
                 self.IO_rect.y = self.y + self.header_rect.height
                 self.input_rect.x = self.x
-                self.input_rect.y = self.IO_rect.y + 50 * self.linebreak
+                self.input_rect.y = self.IO_rect.y + 30 * self.linebreak
                 new_history = []
                 for item in self.history:
                     item = (item[0], self.IO_rect.y + (abs(tmp - item[1])), self.x)
@@ -339,23 +349,26 @@ class Terminal(Application):
                 self.history = new_history
 
     def active_input(self, display, event):
-        if event.key == pygame.K_BACKSPACE:
-            if len(self.user_text) > len("root@CoolHacker:~$ "):
-                self.user_text = self.user_text[:-1]
-        elif event.key == pygame.K_RETURN:
-            self.input = self.user_text[len("root@CoolHacker:~$ "):]
-            self.history.append(((self.user_text), self.input_rect.y, self.input_rect.x))
-            self.linedown()
-            self.input_rect.y = self.IO_rect.y + 50 * self.linebreak
-            self.input_rect.height = self.input_rect.height - 50
-            self.user_text = "root@CoolHacker:~$ "
-            self.handle_input(display)
-        else:
-            self.user_text += event.unicode
-        self.input_text = self.base_font.render(self.user_text, True, WHITE)
-        pygame.draw.rect(display, BLACK, self.input_rect)
-        display.blit(self.input_text, (self.x + 5, self.input_rect.y + 5))
-        pygame.display.update()
+        if not self.downloading:
+            if type(event) == str:
+                self.user_text += event
+            elif event.key == pygame.K_BACKSPACE:
+                if len(self.user_text) > len("root@CoolHacker:~$ "):
+                    self.user_text = self.user_text[:-1]
+            elif event.key == pygame.K_RETURN:
+                self.input = self.user_text[len("root@CoolHacker:~$ "):]
+                self.history.append(((self.user_text), self.input_rect.y, self.input_rect.x))
+                self.linedown()
+                self.input_rect.y = self.IO_rect.y + 30 * self.linebreak
+                self.input_rect.height = self.input_rect.height -30
+                self.user_text = "root@CoolHacker:~$ "
+                self.handle_input(display)
+            else:
+                self.user_text += event.unicode
+            self.input_text = self.base_font.render(self.user_text, True, WHITE)
+            pygame.draw.rect(display, BLACK, self.input_rect)
+            display.blit(self.input_text, (self.x + 5, self.input_rect.y + 5))
+            pygame.display.update()
 
     def handle_input(self, display):
         input = self.input
@@ -365,12 +378,18 @@ class Terminal(Application):
                 pass
             elif input == "exit":
                 self.connected = False
+                self.write("Disconnected")
             elif input == "ls":
                 self.print_folders()
-            elif input[:3] == "ls " and input[2:] in self.active_objective.get_folders():
-                self.print_folder_contents(display, input[3:])
-            elif input[:4] == "cat " and input[3:] in self.active_objective.get_files():
-                self.print_file_contents(display, input[4:])
+            elif input[:3] == "ls " and input[3:] in self.active_objective.get_folders_names():
+                self.print_folder_contents(input[3:])
+            elif input[:4] == "cat " and input[4:input.find('/')] in self.active_objective.get_folders_names() and input[input.find(
+                    '/') + 1:] in self.active_objective.folders[input[4:input.find('/')]].get_folder_contents():
+                self.print_file_contents(input[4:input.find('/')],input[input.find('/') +1:])
+            elif input[:4] == "get " and input[4:input.find('/')] in self.active_objective.get_folders_names() and input[input.find(
+                    '/') + 1:] in self.active_objective.folders[input[4:input.find('/')]].get_folder_contents():
+                self.download_thread = threading.Thread(target=self.get_file, args=(input[4:input.find('/')], input[input.find('/') +1:]))
+                self.download_thread.start()
             else:
                 self.write("Command not found")
         else:
@@ -382,7 +401,7 @@ class Terminal(Application):
                                                                        len("smb445exploit "):] in self.game.objectives.get_objectives_ips():
                 self.connect(input[len("smb445exploit "):])
             elif input[:len("http80exploit ")] == "http80exploit " and input[
-                                                                        len("http80exploit "):] in self.game.objectives.get_objectives_ips():
+                                                                       len("http80exploit "):] in self.game.objectives.get_objectives_ips():
                 self.connect(input[len("http80exploit "):])
             elif input[:len("ftp21exploit ")] == "ftp21exploit " and input[
                                                                      len("ftp21exploit "):] in self.game.objectives.get_objectives_ips():
@@ -399,7 +418,6 @@ class Terminal(Application):
 
         self.history.append(("Nmap version 7.40 ( http://nmap.org )", self.input_rect.y, self.x))
         self.linedown()
-        self.input_rect.y = self.IO_rect.y + 50 * self.linebreak
         self.history.append(("Nmap scan report for " + input, self.input_rect.y, self.x))
         self.linedown()
         self.history.append(("Host is up", self.input_rect.y, self.x))
@@ -412,6 +430,7 @@ class Terminal(Application):
     def connect(self, input):
         self.connected = True
         self.active_objective = self.game.objectives.get_objective_by_ip(input)
+        print(self.active_objective.get_folders_names())
         self.clear_console()
         self.write("Connecting to " + input)
         time.sleep(1)
@@ -425,18 +444,35 @@ class Terminal(Application):
         self.linedown()
         self.draw(self.display)
 
+    def get_file(self,folder,file):
+        self.downloading = True
+        self.clear_console()
+        self.write("Downloading " + file + " from " + folder)
+        self.user_text = "----------------------------------------"
+        for i in range(len(self.user_text)):
+            self.user_text = self.user_text[:i] + "#" + self.user_text[i+1:]
+            time.sleep(rnd.uniform(0, 0.5))
+            self.input_text = self.base_font.render(self.user_text, True, WHITE)
+            display.blit(self.input_text, (self.x + 5, self.input_rect.y + 5))
+            pygame.display.update()
+        self.write("Download complete")
+        self.linedown()
+        self.user_text = "root@CoolHacker:~$ "
+        self.downloading = False
+
+
     def print_folders(self):
         for item in self.active_objective.get_folders_names():
             self.write(str(item))
 
     def print_folder_contents(self, folder):
-        for item in self.active_objective.folders[folder].get_folder_contents(folder):
+        for item in self.active_objective.folders[folder].get_folder_contents():
             self.write(str(item))
 
-    def print_file_contents(self, file):
-        self.write(self.active_objective.files[file].content)
+    def print_file_contents(self, folder, file):
+        self.write(self.active_objective.folders[folder].files[file].content)
 
-    def linedown(self, space=50):
+    def linedown(self, input=None, space=30):
         self.linebreak += 1
         self.input_rect.y = self.IO_rect.y + space * self.linebreak
         self.input_rect.height = self.input_rect.height - space
@@ -504,7 +540,10 @@ class Objective:
             while folder.name in self.folders.keys():
                 folder = Folder()
             self.folders[folder_name] = folder
-        i = rnd.randint(0, self.folders_amount - 1)
+        print(self.folders_amount)
+        i = rnd.randint(0, self.folders_amount-1)
+        print(i)
+        print(list(self.folders.keys()))
         self.folders[list(self.folders.keys())[i]].files["objective.txt"] = File("objective.txt")
 
     def complete(self):
@@ -513,7 +552,7 @@ class Objective:
         self.game.objectives.remove(self)
 
     def get_folders_names(self):
-        return self.folders.keys()
+        return list(self.folders.keys())
 
 
 class Folder:
@@ -535,6 +574,7 @@ class Folder:
         return contents
 
 
+
 class File:
     def __init__(self, name=None, content=None):
         if name == "objective.txt":
@@ -546,9 +586,7 @@ class File:
             self.content = ""
             for i in range(rnd.randint(0, 10)):
                 self.content += RANDOM_WORDS_LIST[rnd.randint(0, len(RANDOM_WORDS_LIST) - 1)] + " "
-            self.content += "\n"
-            for i in range(rnd.randint(0, 10)):
-                self.content += RANDOM_WORDS_LIST[rnd.randint(0, len(RANDOM_WORDS_LIST) - 1)] + " "
+
 
 
 def genIPv4():
