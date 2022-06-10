@@ -169,7 +169,8 @@ class GameStates:
                         self.terminal = not self.terminal
                     if self.browser_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
                         self.browser = not self.browser
-                    if self.terminal_window.IO_rect.collidepoint((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    if self.terminal_window.IO_rect.collidepoint(
+                            (pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
                         self.terminal_window.active = True
                     else:
                         self.terminal_window.active = False
@@ -178,7 +179,6 @@ class GameStates:
                         text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
                         if text:
                             self.terminal_window.active_input(display, text)
-
 
             if event.type == pygame.KEYDOWN:
                 if self.terminal_window.active:
@@ -207,18 +207,18 @@ class GameStates:
         display.blit(self.money_text, (10, 0))
 
         if self.viscord:
-
             self.viscord_window.draw(display)
             self.viscord_window.move()
 
-            if self.curr_contact == "Help":
-                help_info_rect = pygame.rect.Rect(viscord_sided_menu.topright[0], viscord_sided_menu.topright[1],
-                                                  250 - 6, 653 - 50)
-                pygame.draw.rect(display, BLACK, help_info_rect)
         if self.terminal:
             self.terminal_window.draw(display)
             self.terminal_window.move()
+
         pygame.display.update()
+
+
+
+
 
 
 # general application window parent class
@@ -284,6 +284,7 @@ class Viscord(Application):
                                           self.header_font, False, GREEN, (244, 47))
         self.rects.append(self.contact_chat_rect)
         self.buttons.append(self.help_contact)
+        self.contacts = []
 
     def draw(self, display):
         super().draw(display)
@@ -302,6 +303,7 @@ class Viscord(Application):
                 self.contact_chat_rect.y = self.sided_menu.top
                 self.help_contact.x = self.sided_menu.bottomleft[0] + 3
                 self.help_contact.y = self.sided_menu.bottomleft[1] - 50
+
 
 
 class Terminal(Application):
@@ -323,6 +325,7 @@ class Terminal(Application):
         self.active_objective = None
         self.display = display
         self.downloading = False
+        self.download_thread = None
 
     def draw(self, display):
         super().draw(display)
@@ -360,7 +363,7 @@ class Terminal(Application):
                 self.history.append(((self.user_text), self.input_rect.y, self.input_rect.x))
                 self.linedown()
                 self.input_rect.y = self.IO_rect.y + 30 * self.linebreak
-                self.input_rect.height = self.input_rect.height -30
+                self.input_rect.height = self.input_rect.height - 30
                 self.user_text = "root@CoolHacker:~$ "
                 self.handle_input(display)
             else:
@@ -383,12 +386,19 @@ class Terminal(Application):
                 self.print_folders()
             elif input[:3] == "ls " and input[3:] in self.active_objective.get_folders_names():
                 self.print_folder_contents(input[3:])
-            elif input[:4] == "cat " and input[4:input.find('/')] in self.active_objective.get_folders_names() and input[input.find(
-                    '/') + 1:] in self.active_objective.folders[input[4:input.find('/')]].get_folder_contents():
-                self.print_file_contents(input[4:input.find('/')],input[input.find('/') +1:])
-            elif input[:4] == "get " and input[4:input.find('/')] in self.active_objective.get_folders_names() and input[input.find(
-                    '/') + 1:] in self.active_objective.folders[input[4:input.find('/')]].get_folder_contents():
-                self.download_thread = threading.Thread(target=self.get_file, args=(input[4:input.find('/')], input[input.find('/') +1:]))
+            elif input[:4] == "cat " and input[
+                                         4:input.find('/')] in self.active_objective.get_folders_names() and input[
+                                                                                                             input.find(
+                                                                                                                 '/') + 1:] in \
+                    self.active_objective.folders[input[4:input.find('/')]].get_folder_contents():
+                self.print_file_contents(input[4:input.find('/')], input[input.find('/') + 1:])
+            elif input[:4] == "get " and input[
+                                         4:input.find('/')] in self.active_objective.get_folders_names() and input[
+                                                                                                             input.find(
+                                                                                                                 '/') + 1:] in \
+                    self.active_objective.folders[input[4:input.find('/')]].get_folder_contents():
+                self.download_thread = threading.Thread(target=self.get_file,
+                                                        args=(input[4:input.find('/')], input[input.find('/') + 1:]))
                 self.download_thread.start()
             else:
                 self.write("Command not found")
@@ -444,13 +454,13 @@ class Terminal(Application):
         self.linedown()
         self.draw(self.display)
 
-    def get_file(self,folder,file):
+    def get_file(self, folder, file):
         self.downloading = True
         self.clear_console()
         self.write("Downloading " + file + " from " + folder)
         self.user_text = "----------------------------------------"
         for i in range(len(self.user_text)):
-            self.user_text = self.user_text[:i] + "#" + self.user_text[i+1:]
+            self.user_text = self.user_text[:i] + "#" + self.user_text[i + 1:]
             time.sleep(rnd.uniform(0, 0.5))
             self.input_text = self.base_font.render(self.user_text, True, WHITE)
             display.blit(self.input_text, (self.x + 5, self.input_rect.y + 5))
@@ -459,7 +469,7 @@ class Terminal(Application):
         self.linedown()
         self.user_text = "root@CoolHacker:~$ "
         self.downloading = False
-
+        self.download_thread.join()
 
     def print_folders(self):
         for item in self.active_objective.get_folders_names():
@@ -541,7 +551,7 @@ class Objective:
                 folder = Folder()
             self.folders[folder_name] = folder
         print(self.folders_amount)
-        i = rnd.randint(0, self.folders_amount-1)
+        i = rnd.randint(0, self.folders_amount - 1)
         print(i)
         print(list(self.folders.keys()))
         self.folders[list(self.folders.keys())[i]].files["objective.txt"] = File("objective.txt")
@@ -552,7 +562,10 @@ class Objective:
         self.game.objectives.remove(self)
 
     def get_folders_names(self):
-        return list(self.folders.keys())
+        names = []
+        for item in self.folders.keys():
+            names.append(item)
+        return names
 
 
 class Folder:
@@ -574,7 +587,6 @@ class Folder:
         return contents
 
 
-
 class File:
     def __init__(self, name=None, content=None):
         if name == "objective.txt":
@@ -586,7 +598,6 @@ class File:
             self.content = ""
             for i in range(rnd.randint(0, 10)):
                 self.content += RANDOM_WORDS_LIST[rnd.randint(0, len(RANDOM_WORDS_LIST) - 1)] + " "
-
 
 
 def genIPv4():
