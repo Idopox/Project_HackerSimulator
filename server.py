@@ -7,85 +7,81 @@ import time
 import random
 from utils import tcp_by_size as sr
 import datetime
-import pygame
-from utils import button
+import wx
 from utils.colors import *
 
-HEIGHT = 600
-WIDTH = 800
+HEIGHT = 500
+WIDTH = 300
 
 IP = "127.0.0.1"
 PORT = 9999
 DEBUG = True
-all_to_die = False
-threads = []
-
-pygame.init()
-display = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Server")
 
 
+class MyButtons(wx.Dialog):
+    def __init__(self, parent, id, title):
+        wx.Dialog.__init__(self, parent, id, title, size=(WIDTH, HEIGHT))
 
-def log(data, direction):
-    if direction == 'recv':
-        print('=============\nTime: %s \nRecived from Client To Server>>> %s <<<\n=============' % (datetime.datetime.now().strftime('%Y%m%d %H:%M'), data))
-    elif direction == 'sent':
-        print('=============\nTime: %s \nSent from Server To Client>>> %s <<<\n=============' % (datetime.datetime.now().strftime('%Y%m%d %H:%M'), data))
+        wx.Button(self, 1, "Start", pos=(WIDTH//2 - 110//2, 0), size=(110, -1))
+        wx.Button(self, 2, "Close", pos=(WIDTH//2 - 110//2, 30),size=(110, -1))
 
-
-def recv_data(sock):
-    data = sr.recv_by_size(sock)
-    if data:
-        if DEBUG:
-            log(data, 'recv')
-        return data.decode()
+        self.log = wx.TextCtrl(self, wx.ID_ANY, pos=(0, 170), size=(284, HEIGHT - 209),
+                               style=wx.TE_READONLY | wx.TE_MULTILINE | wx.ALIGN_LEFT | wx.TE_LEFT)
 
 
-def handle_player(player_sock, addr, i):
-    global all_to_die
-    while not all_to_die:
-        data = recv_data(player_sock)
-        if data:
-            t = threading.Thread(target=handle_player_data, args=(player_sock, addr, data))
-        else:
-            pass
-    print("Thread " + str(i) + " closed")
 
-def run_server():
-    global threads
-    server_sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    server_sock.bind((IP, PORT))
-    server_sock.listen(2)
-    print("Server started on port " + str(PORT))
-    i = 1
-    while not all_to_die:
-        player_sock, addr = server_sock.accept()
-        print("Player number " + str(i) + " connected from address: " + str(addr))
-        t = threading.Thread(target=handle_player, args=(player_sock, addr, i))
-        threads.append(t)
-        t.start()
-        i += 1
+        self.Bind(wx.EVT_BUTTON, self.on_start, id=1)
+        self.Bind(wx.EVT_BUTTON, self.on_close, id=2)
+
+        sys.stdout = self.log
+
+        self.Centre()
+        self.ShowModal()
+
+    def on_start(self, event):
+        server = Server()
+        server.start()
+
+    def on_close(self, event):
+        self.Close(True)
+        self.Destroy()
+
+class Server():
+    def __init__(self):
+        self.srv_socket = socket.socket()
+        self.srv_socket.bind(('0.0.0.0', 9999))
+        self.srv_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        self.players = []
+        self.threads = []
+
+    def start(self):
+        print("Server started")
+        self.srv_socket.listen(2)
+
+        thread = threading.Thread(target=self.accept_clients)
+        self.threads.append(thread)
+        thread.start()
+
+    def accept_clients(self):
+        print("Waiting for clients...")
+        while True:
+            try:
+                client_sock, addr = self.srv_socket.accept()
+                self.players.append(client_sock)
+                self.text_box.AppendText("Client connected from: " + str(addr))
+                self.text_box.AppendText("\n")
+                if len(self.players) == 2:
+                    self.text_box.AppendText("Two players connected\n")
+                    break
+            except:
+                pass
+
 
 def main():
-    global all_to_die
-    global threads
-    font = pygame.font.SysFont('Arial', 30)
-    start_server_button = button.Button(WIDTH / 2, HEIGHT / 2, 'Start Server', BLACK,WHITE, font, True, GREEN)
-    running = True
-    run_server = False
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if start_server_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    all_to_die = False
-                    run_server = True
-        display.fill(WHITE)
-        start_server_button.draw(display, pygame.mouse.get_pos())
-        pygame.display.update()
-        if run_server:
-            t = threading.Thread(target=run_server)
+
+    app = wx.App(0)
+    MyButtons(None, -1, 'server.py')
+    app.MainLoop()
 
 
 
