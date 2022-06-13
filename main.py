@@ -100,7 +100,7 @@ class GameStates:
         self.won = None
         self.online = True
         self.game = Versus(self)
-
+        self.terminal_window.versus = self.game
     def state_manager(self):
 
         if self.state == "intro":
@@ -351,7 +351,6 @@ class Versus:
             try:
                 data = sr.recv_by_size(self.socket)
                 if data:
-                    print(data)
                     t = threading.Thread(target=self.handle_data, args=(data,))
                     t.start()
                     self.threads.append(t)
@@ -406,8 +405,6 @@ class Versus:
 
         if data[:5] == b"NOBJ~":
             objective = pickle.loads(data[5:])
-            print(type(objective))
-            print(objective.__dict__)
             self.game.objectives.add_existing_objective(objective)
             objective.set_game(self.game)
             objective.add_objective_to_contact(str(rnd.randint(1, 4)))
@@ -415,17 +412,19 @@ class Versus:
 
         data_splitted = data.decode().split("~")
         message_code = data_splitted[0]
-        print(message_code)
-
 
         if message_code == "COBJ":
-            objective = self.game.objectives.get_objective_by_ip(data_splitted[1].decode())
+            objective = self.game.objectives.get_objective_by_ip(data_splitted[1])
+            self.game.terminal_window.write("File uploaded")
+            objective.complete()
             self.game.completed_objectives.append(objective)
             self.game.objectives.remove(objective)
 
         if message_code == "FOBJ":
-            objective = self.game.objectives.get_objective_by_ip(data_splitted[1].decode())
+            objective = self.game.objectives.get_objective_by_ip(data_splitted[1])
             self.game.objectives.remove(objective)
+            self.game.terminal_window.write("Task Failed")
+            objective.fail()
 
         if message_code == "EOBJ":
             self.game.enemy_objectives_completed += 1
@@ -446,11 +445,11 @@ class Versus:
             self.game.won = True
 
         if message_code == "WAIT":
-            print("hello")
             self.send_name()
 
     def send_objective(self, file):
-        sr.send_with_size(self.socket, b"SOBJ~" + self.player_id + b"~" + pickle.dumps(file))
+        sr.send_with_size(self.socket, b"SOBJ~" + str(self.player_id).encode() + b"~" + pickle.dumps(file))
+        print("sent")
 
 
 # general application window parent class
@@ -619,7 +618,7 @@ class Viscord(Application):
 
 
 class Terminal(Application):
-    def __init__(self, x, y, w, h, header_color, game, versus=None):
+    def __init__(self, x, y, w, h, header_color, game):
         super().__init__(x, y, w, h, "terminal", BLACK, header_color)
         self.connected = False
         self.game = game
@@ -639,8 +638,7 @@ class Terminal(Application):
         self.downloading = False
         self.download_thread = None
         self.folder = []
-        if versus is not None:
-            self.versus = versus
+        self.versus = None
 
     def draw(self, display):
         super().draw(display)
@@ -755,14 +753,8 @@ class Terminal(Application):
                                             self.write("File uploaded")
                                             self.folder.remove(item)
                                         else:
-                                            sent = self.versus.send_objective(item)
-                                            if sent:
-                                                self.write("File uploaded")
-                                                self.folder.remove(item)
-                                                objective.complete()
-                                            else:
-                                                self.write("Task Failed")
-                                                objective.fail()
+                                            self.versus.send_objective(item)
+                                            self.folder.remove(item)
 
             else:
                 self.write("Command not found")
@@ -930,8 +922,9 @@ class Objective:
         return names
 
     def check_if_objective_completed(self, file):
-        if file == self.target_file:
-            self.complete()
+        if file.__dict__ == self.target_file.__dict__:
+            return True
+        return False
 
     def add_objective_to_contact(self, contact):
         self.game.viscord_window.contacts[

@@ -5,6 +5,8 @@ import sys
 import threading
 import time
 import random
+import traceback
+
 from utils import tcp_by_size as sr
 import datetime
 import wx
@@ -82,38 +84,32 @@ class Server:
         t = threading.Thread(target=self.send_objective)
         self.threads.append(t)
         t.start()
-        t = threading.Thread(target=self.game_loop)
+        t = threading.Thread(target=self.recv_data, args=(self.players_data[0][1],))
+        self.threads.append(t)
+        t.start()
+        t = threading.Thread(target=self.recv_data, args=(self.players_data[1][1],))
         self.threads.append(t)
         t.start()
 
-    def game_loop(self):
-        t = threading.Thread(target=self.recv_data, args=(self.players[self.players_data[0][1]],))
-        self.threads.append(t)
-        t.start()
-        t = threading.Thread(target=self.recv_data, args=(self.players[self.players_data[1][1]],))
-        self.threads.append(t)
-        t.start()
-        while True:
-            pass
 
     def recv_data(self, sock):
         while True:
             try:
                 data = sr.recv_by_size(sock)
-
                 if data:
                     t = threading.Thread(target=self.handle_data, args=(data, sock))
                     self.threads.append(t)
                     t.start()
             except:
-                pass
+                print(traceback.format_exc())
 
     def handle_data(self, data, sock):
         if data:
-            player_id = data.decode('utf-8').split('~')[1]
-            if data.decode('utf-8').startswith('SOBJ'):
-                player_id = int(data.decode('utf-8').split('~')[1])
-                file = pickle.loads(data.split('~')[2])
+            if data[:5] == b'SOBJ~':
+                player_id = int(data.split(b'~')[1])
+                print("Got objective from player " + str(player_id))
+                file = pickle.loads(data.split(b'~')[2])
+                print(file)
                 self.check_file(file, player_id, sock)
 
             else:
@@ -122,7 +118,7 @@ class Server:
     def check_file(self, file, player_id, sock):
         objective = None
         for objective in self.objectives_sent:
-            if objective.target_file.check_file(file):
+            if objective.check_if_objective_completed(file):
                 self.completed_objectives[player_id] = objective
                 self.objectives_sent.remove(objective)
                 sr.send_with_size(sock, b'COBJ~' + str(objective.ip).encode('utf-8'))
@@ -130,8 +126,9 @@ class Server:
                 for player in self.players:
                     if player != sock:
                         sr.send_with_size(player, b'EOBJ~' + str(objective.ip).encode('utf-8'))
-                return
-        sr.send_with_size(sock, b'FOBJ')
+                        return
+
+        sr.send_with_size(sock, b'FOBJ~' + str(objective.ip).encode('utf-8'))
 
     def send_start(self, sock, player_id, other_name):
         sr.send_with_size(sock, b'STRT~' + str(player_id).encode('utf-8') + b'~' + other_name.encode('utf-8'))
