@@ -4,15 +4,15 @@ import pickle
 import random as rnd
 import socket
 import sys
+import threading
 import time
 
 import pygame
 from pygame import mixer
 
 from utils import button
-from utils.colors import *
-import threading
 from utils import tcp_by_size as sr
+from utils.colors import *
 
 WIDTH = 1920
 HEIGHT = 1080
@@ -23,11 +23,9 @@ RANDOM_WORDS_LIST = ["ink", "historical", "caption", "medical", "garrulous", "sn
                      "cactus", "extra-small", "rake", "apple", "jar", "drop",
                      "tiger", "tired", "toy"]
 SERVICES = ["http", "ssh", "ftp", "smb"]
-pygame.init()
-display = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.scrap.init()
-clock = pygame.time.Clock()
-ARIAL_FONT = pygame.font.SysFont("arial", 25)
+
+display = None
+ARIAL_FONT = None
 
 
 def game_over():
@@ -83,6 +81,7 @@ class GameStates:
         self.terminal_window = Terminal(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
         self.objectives = Objectives(self)
         self.completed_objectives = []
+        self.online = False
 
     def init_training(self):
         self.objectives.add_objective("1")
@@ -99,6 +98,8 @@ class GameStates:
         self.enemy_objectives_total = 0
         self.enemy_name = "None"
         self.won = None
+        self.online = True
+        self.game = Versus(self)
 
     def state_manager(self):
 
@@ -249,37 +250,111 @@ class GameStates:
 
     def versus(self):
         pygame.display.set_caption("VERSUS")
-        game = Versus(self)
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                self.state = "gameOver"
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    self.state = "gameOver"
-                if self.join_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                    game.connect(display)
 
         if not self.game_started:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.state = "gameOver"
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.state = "gameOver"
+                    if self.join_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.game.connect(display)
+                display.fill(BG)
+                self.EXIT_BUTTON.draw(display, pygame.mouse.get_pos())
+                self.join_button.draw(display, pygame.mouse.get_pos())
+
+        else:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.state = "gameOver"
+                if event.type == pygame.MOUSEBUTTONDOWN:
+                    if event.button == 1:
+                        if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                            self.state = "gameOver"
+                        if self.viscord_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                            self.viscord = not self.viscord
+                        if self.terminal_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                            self.terminal = not self.terminal
+                        if self.browser_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                            self.browser = not self.browser
+                        if self.terminal_window.IO_rect.collidepoint(
+                                (pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                            self.terminal_window.active = True
+                        else:
+                            self.terminal_window.active = False
+                        for contact in self.viscord_window.contacts:
+                            if self.viscord_window.contacts[contact]["button"].isOver((pygame.mouse.get_pos()[0],
+                                                                                       pygame.mouse.get_pos()[1])):
+                                if self.viscord_window.active_contact == contact:
+                                    self.viscord_window.active_contact = None
+                                    self.viscord_window.display_default_chat(display)
+                                else:
+                                    self.viscord_window.display_default_chat(display)
+                                    self.viscord_window.active_contact = self.viscord_window.contacts[contact]
+                                    self.viscord_window.display_contact_chat(contact, display)
+                    if event.button == 3:
+                        if self.terminal_window.active:
+                            text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
+                            if text:
+                                self.terminal_window.active_input(display, text)
+
+                if event.type == pygame.KEYDOWN:
+                    if self.terminal_window.active:
+                        self.terminal_window.active_input(display, event)
+
             display.fill(BG)
+            display.blit(self.desktop, (0, 0))
+            menu = pygame.rect.Rect(-3, HEIGHT / 2 - 150, 75, 300)
+            pygame.draw.rect(display, BLACK, menu, 3)
+            upper_menu = pygame.rect.Rect(0, -3, 1920, 33)
+            pygame.draw.rect(display, BLACK, upper_menu, 3)
+            fill_rect = pygame.rect.Rect(0, 0, 1920, 30)
+            pygame.draw.rect(display, BG, fill_rect)
             self.EXIT_BUTTON.draw(display, pygame.mouse.get_pos())
-            self.join_button.draw(display, pygame.mouse.get_pos())
+            self.viscord_button.draw(display, pygame.mouse.get_pos())
+            self.terminal_button.draw(display, pygame.mouse.get_pos())
+            self.browser_button.draw(display, pygame.mouse.get_pos())
+            self.money_text = self.money_font.render("$" + str(self.money), True, BLACK)
+            display.blit(self.money_text, (10, 0))
+
+            if self.viscord:
+                self.viscord_window.draw(display)
+                self.viscord_window.move()
+
+            if self.terminal:
+                self.terminal_window.draw(display)
+                self.terminal_window.move()
+                if self.terminal_window.download_thread is not None and self.terminal_window.download_thread.is_alive() and not self.terminal_window.downloading:
+                    self.terminal_window.download_thread.join()
+
         pygame.display.update()
 
 
 class Versus:
+    global display
+
     def __init__(self, game):
         self.socket = socket.socket()
-        self.ip_input_box = button.InputBox(WIDTH / 2 - 100, HEIGHT / 2 - 100, 200, 50, BLACK, WHITE,
-                                            pygame.font.SysFont("comicsansms", 30), "IP Address")
+        self.ip_input_box = button.InputBox(WIDTH / 2 - 100, HEIGHT / 2 - 100, 400, 50, BLACK, WHITE,
+                                            pygame.font.SysFont("comicsansms", 30),
+                                            "127.0.0.1:9999")  # "type: {IP Address:PORT}")
+        self.name_input_box = button.InputBox(WIDTH / 2 - 100, HEIGHT / 2 - 50, 400, 50, BLACK, WHITE,
+                                              pygame.font.SysFont("comicsansms", 30), "Player")
         self.game = game
         self.threads = []
+        self.player_id = None
+        self.name = "Player"
 
     def listen_to_server(self):
         while self.game.game_started:
             try:
                 data = sr.recv_by_size(self.socket)
                 if data:
-                    self.handle_data(data)
+                    print(data)
+                    t = threading.Thread(target=self.handle_data, args=(data,))
+                    t.start()
+                    self.threads.append(t)
             except:
                 pass
 
@@ -295,55 +370,87 @@ class Versus:
                                            pygame.font.SysFont("comicsansms", 30), True, GREEN, (200, 50))
             for event in pygame.event.get():
                 self.ip_input_box.handle_event(event)
+                self.name_input_box.handle_event(event)
                 if event.type == pygame.QUIT:
                     self.game.state = "gameOver"
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if connect_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
-                        self.socket.connect((self.ip_input_box.text[:self.ip_input_box.text.find(':')],
-                                             int(self.ip_input_box.text[self.ip_input_box.text.find(':') + 1:])))
-                        self.game.state = "versus"
-                        self.game.game_started = True
-                        t = threading.Thread(target=self.listen_to_server)
-                        self.threads.append(t)
-                        t.start()
-                        return
+                        try:
+                            self.name = self.name_input_box.text
+                            self.socket.connect((self.ip_input_box.text[:self.ip_input_box.text.find(':')],
+                                                 int(self.ip_input_box.text[self.ip_input_box.text.find(':') + 1:])))
+                            print("connected")
+                            self.game.game_started = True
+                            t = threading.Thread(target=self.listen_to_server)
+                            self.threads.append(t)
+                            t.start()
+                            return
+                        except:
+                            pass
+            self.name_input_box.update()
+            self.name_input_box.render(display)
             self.ip_input_box.update()
             self.ip_input_box.render(display)
             self.game.EXIT_BUTTON.draw(display, pygame.mouse.get_pos())
             connect_button.draw(display, pygame.mouse.get_pos())
             pygame.display.update()
 
-    def handle_data(self, data):
-        data_splitted = data.split("~")
-        message_code = data_splitted[0]
-        if message_code == b"NOBJ":
-            objective = pickle.loads(data_splitted[1])
-            self.game.objectives.add_objective()
-            objective.add_objective_to_contact(rnd.randint(1, 4))
+    def send_name(self):
+        sr.send_with_size(self.socket, bytes("CONN~" + self.name, "utf-8"))
 
-        if message_code == b"COBJ":
+    def main_loop(self):
+        while self.game.game_started:
+            pygame.display.update()
+
+    def handle_data(self, data):
+
+        if data[:5] == b"NOBJ~":
+            objective = pickle.loads(data[5:])
+            print(type(objective))
+            print(objective.__dict__)
+            self.game.objectives.add_existing_objective(objective)
+            objective.set_game(self.game)
+            objective.add_objective_to_contact(str(rnd.randint(1, 4)))
+            return
+
+        data_splitted = data.decode().split("~")
+        message_code = data_splitted[0]
+        print(message_code)
+
+
+        if message_code == "COBJ":
             objective = self.game.objectives.get_objective_by_ip(data_splitted[1].decode())
             self.game.completed_objectives.append(objective)
             self.game.objectives.remove(objective)
 
-        if message_code == b"FOBJ":
+        if message_code == "FOBJ":
             objective = self.game.objectives.get_objective_by_ip(data_splitted[1].decode())
             self.game.objectives.remove(objective)
 
-        if message_code == b"EOBJ":
+        if message_code == "EOBJ":
             self.game.enemy_objectives_completed += 1
 
-        if message_code == b"STRT":
+        if message_code == "STRT":
             self.game.game_started = True
-            self.game.enemy_name = data_splitted[1].decode()
+            self.player_id = int(data_splitted[1])
+            self.game.enemy_name = data_splitted[2]
 
-        if message_code == b"LOSE":
+        if message_code == "LOSE":
             self.game.state = "LOSE"
+            self.game.game_started = False
             self.game.won = False
 
-        if message_code == b"WINN":
+        if message_code == "WINN":
             self.game.state = "WIN"
+            self.game.game_started = False
             self.game.won = True
+
+        if message_code == "WAIT":
+            print("hello")
+            self.send_name()
+
+    def send_objective(self, file):
+        sr.send_with_size(self.socket, b"SOBJ~" + self.player_id + b"~" + pickle.dumps(file))
 
 
 # general application window parent class
@@ -413,19 +520,19 @@ class Viscord(Application):
         self.contacts = {}
         self.contact1 = button.Button(self.sided_menu.topleft[0] + 3, self.sided_menu.topleft[1] + 3, "H04X", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["1"] = {"button": self.contact1, "chat": ""}
+        self.contacts["1"] = {"button": self.contact1, "chat": "", "name": "H04X", "objectives": []}
         self.contact2 = button.Button(self.sided_menu.topleft[0] + 3,
                                       self.sided_menu.topleft[1] + 3 + 47, "4L4K4Z4M", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["2"] = {"button": self.contact2, "chat": ""}
+        self.contacts["2"] = {"button": self.contact2, "chat": "", "name": "4L4K4Z4M", "objectives": []}
         self.contact3 = button.Button(self.sided_menu.topleft[0] + 3,
                                       self.sided_menu.topleft[1] + 3 + 47 * 2, "FL45H", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["3"] = {"button": self.contact3, "chat": ""}
+        self.contacts["3"] = {"button": self.contact3, "chat": "", "name": "FL45H", "objectives": []}
         self.contact4 = button.Button(self.sided_menu.topleft[0] + 3,
                                       self.sided_menu.topleft[1] + 3 + 47 * 3, "CH405", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["4"] = {"button": self.contact4, "chat": ""}
+        self.contacts["4"] = {"button": self.contact4, "chat": "", "name": "CH405", "objectives": []}
         self.active_contact = None
 
     def draw(self, display):
@@ -482,16 +589,18 @@ class Viscord(Application):
                         line += " " + word
                     lines.append(line)
                     for line in lines:
-                        display.blit(self.base_font.render(line, True, LIGHT_SKY_BLUE_4),
+                        display.blit(self.base_font.render(line, True, WHITE),
                                      (self.contact_chat_rect.x, self.contact_chat_rect.y))
                         self.contact_chat_rect.y += self.base_font.size(line)[1] + 5
                         self.contact_chat_rect.height -= self.base_font.size(line)[1] + 5
 
                 else:
-                    display.blit(self.base_font.render(message, True, LIGHT_SKY_BLUE_4),
+                    display.blit(self.base_font.render(message, True, WHITE),
                                  (self.contact_chat_rect.x, self.contact_chat_rect.y))
                     self.contact_chat_rect.y += self.base_font.size(message)[1] + 5
                     self.contact_chat_rect.height -= self.base_font.size(message)[1] + 5
+                self.contact_chat_rect.y += 15
+                self.contact_chat_rect.height -= 15
 
             # check if the chat is full and if so, scroll down
             if self.contact_chat_rect.height < 0:
@@ -510,7 +619,7 @@ class Viscord(Application):
 
 
 class Terminal(Application):
-    def __init__(self, x, y, w, h, header_color, game):
+    def __init__(self, x, y, w, h, header_color, game, versus=None):
         super().__init__(x, y, w, h, "terminal", BLACK, header_color)
         self.connected = False
         self.game = game
@@ -529,6 +638,9 @@ class Terminal(Application):
         self.display = display
         self.downloading = False
         self.download_thread = None
+        self.folder = []
+        if versus is not None:
+            self.versus = versus
 
     def draw(self, display):
         super().draw(display)
@@ -603,6 +715,8 @@ class Terminal(Application):
                 self.download_thread = threading.Thread(target=self.get_file,
                                                         args=(input[4:input.find('/')], input[input.find('/') + 1:]))
                 self.download_thread.start()
+                self.folder.append(
+                    self.active_objective.folders[input[4:input.find('/')]].files[input[input.find('/') + 1:]])
             else:
                 self.write("Command not found")
         else:
@@ -622,8 +736,37 @@ class Terminal(Application):
             elif input[:len("ssh22exploit ")] == "ssh22exploit " and input[
                                                                      len("ssh22exploit "):] in self.game.objectives.get_objectives_ips():
                 self.connect(input[len("ssh22exploit "):])
+            elif input[:2] == "ls":
+                for item in self.folder:
+                    self.write(str(item.name))
+            elif input[:4] == "cat ":
+                for item in self.folder:
+                    if item.name == input[4:]:
+                        self.write(item.content)
+            elif input[:7] == "upload ":
+                for contact in self.game.viscord_window.contacts:
+                    if self.game.viscord_window.contacts[contact]["name"] == input[7:input.rfind(' ')]:
+                        for item in self.folder:
+                            if item.name == input[input.rfind(' ') + 1:]:
+                                for objective in self.game.viscord_window.contacts[contact]["objectives"]:
+                                    if objective.target_file.name == item.name and objective.target_file.content == item.content:
+                                        if not self.game.online:
+                                            objective.complete()
+                                            self.write("File uploaded")
+                                            self.folder.remove(item)
+                                        else:
+                                            sent = self.versus.send_objective(item)
+                                            if sent:
+                                                self.write("File uploaded")
+                                                self.folder.remove(item)
+                                                objective.complete()
+                                            else:
+                                                self.write("Task Failed")
+                                                objective.fail()
+
             else:
                 self.write("Command not found")
+                print()
 
     def nmap(self, input):
         self.history.append(((self.user_text), self.input_rect.y, self.input_rect.x))
@@ -725,19 +868,18 @@ class Objectives:
                 return item
         return None
 
-    def add_objective(self, objective):
-        if type(objective) == Objective:
-            self.objectives.append(objective)
-        else:
-            to_add = Objective(self.game)
-            self.objectives.append(to_add)
-            to_add.add_objective_to_contact(objective)
+    def add_objective(self, contact):
+        to_add = Objective()
+        to_add.set_game(self.game)
+        self.objectives.append(to_add)
+        to_add.add_objective_to_contact(contact)
 
-
+    def add_existing_objective(self, objective):
+        self.objectives.append(objective)
 
 
 class Objective:
-    def __init__(self, game):
+    def __init__(self):
         self.ip = genIPv4()
         self.open_service = rnd.randint(0, 3)
         # 0 = ssh, 1 = http, 2 = smb, 3 = ftp
@@ -750,8 +892,9 @@ class Objective:
         if self.open_service == 3:
             self.service = "21/tcp open  ftp"
         self.completed = False
-        self.game = game
+        self.game = None
         self.folders = {}
+        self.contact = None
         self.folders_amount = rnd.randint(1, 5)
         for i in range(self.folders_amount):
             folder = Folder()
@@ -761,14 +904,24 @@ class Objective:
             self.folders[folder_name] = folder
         # select a random folder to put the objective file in
         random_folder = list(self.folders.keys())[rnd.randint(0, len(self.folders) - 1)]
-        self.folders[random_folder].add_file(RANDOM_WORDS_LIST[rnd.randint(0, len(RANDOM_WORDS_LIST) - 1)] + ".txt",
-                                             "This is the objective file")
+        self.target_file = File(RANDOM_WORDS_LIST[rnd.randint(0, len(RANDOM_WORDS_LIST) - 1)] + ".txt",
+                                "This is the objective file")
+        self.folders[random_folder].add_existing_file(self.target_file)
+
+    def set_game(self, game):
+        self.game = game
 
     def complete(self):
-        self.completed = True
         self.game.money += rnd.randint(60, 120)
-        self.game.objectives.remove(self)
-        self.game.viscord_window.contacts[self.contact]["chat"] += "Task Completed \n"
+        self.game.objectives.objectives.remove(self)
+        self.game.viscord_window.contacts[self.contact]["chat"] += "Task Completed (" + str(self.ip) + ") \n"
+        self.game.viscord_window.contacts[self.contact]["objectives"].remove(self)
+
+    def fail(self):
+        self.completed = True
+        self.game.viscord_window.contacts[self.contact]["chat"] += "Task Failed (" + str(self.ip) + ") \n"
+        self.game.viscord_window.contacts[self.contact]["objectives"].remove(self)
+        self.game.objectives.objectives.remove(self)
 
     def get_folders_names(self):
         names = []
@@ -776,11 +929,17 @@ class Objective:
             names.append(item)
         return names
 
+    def check_if_objective_completed(self, file):
+        if file == self.target_file:
+            self.complete()
+
     def add_objective_to_contact(self, contact):
         self.game.viscord_window.contacts[
             contact][
             "chat"] += "Hey there, Can you help me get a file that contains the text \"This is the RIGHT FILE\" from " \
                        "the ip: " + self.ip + "?\n "
+        self.game.viscord_window.contacts[contact]["objectives"].append(self)
+        self.contact = contact
 
 
 class Folder:
@@ -803,6 +962,9 @@ class Folder:
 
     def add_file(self, file_name, file_content):
         self.files[file_name] = File(file_name, file_content)
+
+    def add_existing_file(self, file):
+        self.files[file.name] = file
 
 
 class File:
@@ -829,6 +991,14 @@ def genIPv4():
 
 # main_loop
 def main():
+    global display
+    global ARIAL_FONT
+    pygame.init()
+    display = pygame.display.set_mode((WIDTH, HEIGHT))
+    pygame.scrap.init()
+    clock = pygame.time.Clock()
+    ARIAL_FONT = pygame.font.SysFont("arial", 25)
+
     game = GameStates()
     # Main game loop
     running = True
