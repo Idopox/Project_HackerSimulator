@@ -26,11 +26,9 @@ SERVICES = ["http", "ssh", "ftp", "smb"]
 
 display = None
 ARIAL_FONT = None
+all_to_die = False
 
 
-def game_over():
-    pygame.quit()
-    sys.exit()
 
 
 class GameStates:
@@ -44,6 +42,7 @@ class GameStates:
         mixer.music.set_volume(self.volume)
         self.mute = False
         self.volume_change_font = pygame.font.SysFont("arial", 100)
+
         self.back_button = button.Button(WIDTH / 2, HEIGHT - 50, "BACK", BLACK, BG, ARIAL_FONT, True, LIGHT_BLUE_3,
                                          (100, 50), 5, 3, BLACK)
         self.sound_button = button.ImageButton(WIDTH / 2, HEIGHT / 2 - 100, "assets/images/sound_on.png",
@@ -56,6 +55,8 @@ class GameStates:
         self.title_font = pygame.font.Font("assets/fonts/hackerchaos.otf", 200)
         self.title_text = self.title_font.render("Hacker Simulator", True, BLACK)
         self.main_font = pygame.font.Font("assets/fonts/main.otf", 60)
+        self.restart_button = button.Button(WIDTH / 2, HEIGHT / 2, "RESTART", BLACK, BG, self.main_font, True,
+                                            RED, (WIDTH / 2, HEIGHT / 2), 5, 3, BLACK)
         self.training_button = button.Button(WIDTH / 2, HEIGHT / 2 - 100, "TRAINING", BLACK, BG, self.main_font, True,
                                              LIGHT_BLUE_3)
         self.versus_button = button.Button(WIDTH / 2, HEIGHT / 2 + 50, "1 VS 1", BLACK, BG, self.main_font, True,
@@ -80,10 +81,19 @@ class GameStates:
         self.viscord_window = Viscord(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
         self.terminal_window = Terminal(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
         self.objectives = Objectives(self)
-        self.completed_objectives = []
         self.online = False
+        self.completed_objectives = 0
 
     def init_training(self):
+        self.viscord = False
+        self.terminal = False
+        self.browser = False
+        self.curr_contact = "None"
+        self.viscord_window = Viscord(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
+        self.terminal_window = Terminal(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
+        self.objectives = Objectives(self)
+        self.online = False
+        self.completed_objectives = 0
         self.objectives.add_objective("1")
         self.objectives.add_objective("1")
         self.objectives.add_objective("2")
@@ -91,6 +101,15 @@ class GameStates:
         self.objectives.add_objective("4")
 
     def init_online(self):
+        self.viscord = False
+        self.terminal = False
+        self.browser = False
+        self.curr_contact = "None"
+        self.viscord_window = Viscord(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
+        self.terminal_window = Terminal(WIDTH / 2 + 150, HEIGHT / 2 - 500, 800, 700, LIGHT_GREY, self)
+        self.objectives = Objectives(self)
+        self.online = False
+        self.completed_objectives = 0
         self.join_button = button.Button(WIDTH / 2, HEIGHT / 2 - 100, "JOIN", BLACK, BG, self.main_font, True,
                                          LIGHT_BLUE_3)
         self.game_started = False
@@ -98,9 +117,11 @@ class GameStates:
         self.enemy_objectives_total = 0
         self.enemy_name = "None"
         self.won = None
-        self.online = True
+        self.online = False
         self.game = Versus(self)
         self.terminal_window.versus = self.game
+        self.browser_window = None
+
     def state_manager(self):
 
         if self.state == "intro":
@@ -112,7 +133,7 @@ class GameStates:
         elif self.state == "settings":
             self.settings()
         elif self.state == "gameOver":
-            game_over()
+            self.game_over()
 
     def intro(self):
         pygame.display.set_caption("Hacker Simulator")
@@ -328,7 +349,52 @@ class GameStates:
                 if self.terminal_window.download_thread is not None and self.terminal_window.download_thread.is_alive() and not self.terminal_window.downloading:
                     self.terminal_window.download_thread.join()
 
+            if self.browser_window is not None:
+                if self.browser:
+                    self.browser_window.draw(display)
+                    self.browser_window.move()
+
         pygame.display.update()
+
+    def game_over(self):
+        global all_to_die
+        if not all_to_die:
+            all_to_die = True
+            if self.online:
+                self.game_started = False
+                for thread in self.game.threads:
+                    thread.join(0.01)
+                self.game.socket.close()
+
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                pygame.quit()
+                sys.exit()
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if self.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    pygame.quit()
+                    sys.exit()
+                if self.restart_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    self.state = "intro"
+                    all_to_die = False
+        if self.online:
+            if self.won:
+                pygame.display.set_caption("YOU WON")
+                display.fill(GREEN)
+                self.restart_button.draw(display, pygame.mouse.get_pos())
+                win_text = self.main_font.render("YOU WON :)", True, BLACK)
+                display.blit(win_text, (WIDTH / 2 - win_text.get_width() / 2, 0))
+            else:
+                pygame.display.set_caption("YOU LOST")
+                display.fill(RED)
+                self.restart_button.draw(display, pygame.mouse.get_pos())
+                lose_text = self.main_font.render("YOU LOST :(", True, BLACK)
+                display.blit(lose_text, (WIDTH / 2 - lose_text.get_width() / 2, 0))
+        else:
+            pygame.quit()
+            sys.exit()
+        pygame.display.update()
+
 
 
 class Versus:
@@ -347,13 +413,18 @@ class Versus:
         self.name = "Player"
 
     def listen_to_server(self):
+        global all_to_die
         while self.game.game_started:
+            if all_to_die:
+                break
             try:
                 data = sr.recv_by_size(self.socket)
                 if data:
                     t = threading.Thread(target=self.handle_data, args=(data,))
                     t.start()
                     self.threads.append(t)
+            except ConnectionResetError:
+                self.game.state = "gameOver"
             except:
                 pass
 
@@ -372,6 +443,7 @@ class Versus:
                 self.name_input_box.handle_event(event)
                 if event.type == pygame.QUIT:
                     self.game.state = "gameOver"
+                    return
                 if event.type == pygame.MOUSEBUTTONDOWN:
                     if connect_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
                         try:
@@ -380,12 +452,16 @@ class Versus:
                                                  int(self.ip_input_box.text[self.ip_input_box.text.find(':') + 1:])))
                             print("connected")
                             self.game.game_started = True
+                            self.game.online = True
                             t = threading.Thread(target=self.listen_to_server)
                             self.threads.append(t)
                             t.start()
                             return
                         except:
                             pass
+                    if self.game.EXIT_BUTTON.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        self.game.state = "gameOver"
+                        return
             self.name_input_box.update()
             self.name_input_box.render(display)
             self.ip_input_box.update()
@@ -396,10 +472,6 @@ class Versus:
 
     def send_name(self):
         sr.send_with_size(self.socket, bytes("CONN~" + self.name, "utf-8"))
-
-    def main_loop(self):
-        while self.game.game_started:
-            pygame.display.update()
 
     def handle_data(self, data):
 
@@ -417,14 +489,10 @@ class Versus:
             objective = self.game.objectives.get_objective_by_ip(data_splitted[1])
             self.game.terminal_window.write("File uploaded")
             objective.complete()
-            self.game.completed_objectives.append(objective)
-            self.game.objectives.remove(objective)
+            self.game.completed_objectives += 1
 
         if message_code == "FOBJ":
-            objective = self.game.objectives.get_objective_by_ip(data_splitted[1])
-            self.game.objectives.remove(objective)
-            self.game.terminal_window.write("Task Failed")
-            objective.fail()
+            self.game.terminal_window.write("Not the right file")
 
         if message_code == "EOBJ":
             self.game.enemy_objectives_completed += 1
@@ -433,16 +501,20 @@ class Versus:
             self.game.game_started = True
             self.player_id = int(data_splitted[1])
             self.game.enemy_name = data_splitted[2]
+            self.game.objectives_amount = int(data_splitted[3])
+            self.game.browser_window = Browser(self.game)
 
         if message_code == "LOSE":
-            self.game.state = "LOSE"
+            self.game.state = "gameOver"
             self.game.game_started = False
             self.game.won = False
+            print("You lost")
 
         if message_code == "WINN":
-            self.game.state = "WIN"
+            self.game.state = "gameOver"
             self.game.game_started = False
             self.game.won = True
+            print("You won")
 
         if message_code == "WAIT":
             self.send_name()
@@ -742,6 +814,7 @@ class Terminal(Application):
                     if item.name == input[4:]:
                         self.write(item.content)
             elif input[:7] == "upload ":
+                file_sent = False
                 for contact in self.game.viscord_window.contacts:
                     if self.game.viscord_window.contacts[contact]["name"] == input[7:input.rfind(' ')]:
                         for item in self.folder:
@@ -755,6 +828,9 @@ class Terminal(Application):
                                         else:
                                             self.versus.send_objective(item)
                                             self.folder.remove(item)
+                                        file_sent = True
+                if not file_sent:
+                    self.write("File not found")
 
             else:
                 self.write("Command not found")
@@ -835,6 +911,95 @@ class Terminal(Application):
         self.input_rect.y = self.IO_rect.y
 
 
+# browser class for the browser window that is used to see the status of the match (how many objectives are completed, how many are left, how many did the opponent complete, etc.)
+class Browser(Application):
+    def __init__(self, game):
+        super().__init__(100, 100, 1200, 800, "browser", GREY17, BG)
+        self.game = game
+        self.objectives = self.game.objectives
+        self.online = self.game.online
+        self.opponent_objectives_completed = self.game.enemy_objectives_completed
+        self.total_objectives = self.game.objectives_amount
+        self.opponent_name = self.game.enemy_name
+        self.opponent_objectives_left = self.total_objectives - self.opponent_objectives_completed
+        self.completed_objectives = self.game.completed_objectives
+        self.objectives_left = self.total_objectives - self.completed_objectives
+
+        self.font = pygame.font.Font("assets/fonts/terminal.ttf", 20)
+
+        self.opponent_name_text = self.font.render("Opponent name: " + self.opponent_name, True, WHITE)
+        self.opponent_objectives_completed_text = self.font.render(
+            "Opponent Objectives completed: " + str(self.opponent_objectives_completed), True, WHITE)
+        self.opponent_objectives_left_text = self.font.render("Opponent Objectives left: " + str(self.opponent_objectives_left),
+                                                              True, WHITE)
+        self.objectives_completed_text = self.font.render("Objectives completed: " + str(self.completed_objectives),
+                                                          True, WHITE)
+        self.objectives_left_text = self.font.render("Objectives left: " + str(self.objectives_left), True, WHITE)
+        self.objectives_total_text = self.font.render("Objectives total: " + str(self.total_objectives), True, WHITE)
+
+        self.opponent_name_rect = self.opponent_name_text.get_rect()
+        self.opponent_objectives_completed_rect = self.opponent_objectives_completed_text.get_rect()
+        self.opponent_objectives_left_rect = self.opponent_objectives_left_text.get_rect()
+        self.objectives_completed_rect = self.objectives_completed_text.get_rect()
+        self.objectives_left_rect = self.objectives_left_text.get_rect()
+        self.objectives_total_rect = self.objectives_total_text.get_rect()
+
+        self.opponent_name_rect.x = self.x + 10
+        self.opponent_name_rect.y = self.y + self.header_rect.height + 10
+        self.opponent_objectives_completed_rect.x = self.x + 10
+        self.opponent_objectives_completed_rect.y = self.y + 40
+        self.opponent_objectives_left_rect.x = self.x + 10
+        self.opponent_objectives_left_rect.y = self.y + 70
+        self.objectives_completed_rect.x = self.x + 10
+        self.objectives_completed_rect.y = self.y + 100
+        self.objectives_left_rect.x = self.x + 600
+        self.objectives_left_rect.y = self.y + self.header_rect.height + 10
+        self.objectives_total_rect.x = self.x + 600
+        self.objectives_total_rect.y = self.y + 30
+
+    def draw(self, display):
+        super().draw(display)
+        self.update_stats()
+        display.blit(self.opponent_name_text, self.opponent_name_rect)
+        display.blit(self.opponent_objectives_completed_text, self.opponent_objectives_completed_rect)
+        display.blit(self.opponent_objectives_left_text, self.opponent_objectives_left_rect)
+        display.blit(self.objectives_completed_text, self.objectives_completed_rect)
+        display.blit(self.objectives_left_text, self.objectives_left_rect)
+        display.blit(self.objectives_total_text, self.objectives_total_rect)
+
+    def move(self):
+        super().move()
+        self.opponent_name_rect.x = self.x + 10
+        self.opponent_name_rect.y = self.objectives_total_rect.bottom + 10
+        self.opponent_objectives_completed_rect.x = self.x + 10
+        self.opponent_objectives_completed_rect.y = self.objectives_total_rect.bottom + 110
+        self.opponent_objectives_left_rect.x = self.x + 10
+        self.opponent_objectives_left_rect.y = self.objectives_total_rect.bottom + 210
+        self.objectives_completed_rect.x = self.x + 700
+        self.objectives_completed_rect.y = self.opponent_name_rect.y
+        self.objectives_left_rect.x = self.x + 700
+        self.objectives_left_rect.y = self.opponent_objectives_completed_rect.y
+        self.objectives_total_rect.x = self.x + 600 - self.objectives_total_rect.width//2
+        self.objectives_total_rect.y = self.y + self.header_rect.height + 10
+
+    def update_stats(self):
+        self.opponent_objectives_completed = self.game.enemy_objectives_completed
+        self.opponent_objectives_left = self.total_objectives - self.opponent_objectives_completed
+        self.opponent_name = self.game.enemy_name
+        self.completed_objectives = self.game.completed_objectives
+        self.objectives_left = self.total_objectives - self.completed_objectives
+
+        self.opponent_name_text = self.font.render("Opponent name: " + self.opponent_name, True, WHITE)
+        self.opponent_objectives_completed_text = self.font.render(
+            "Opponent Objectives completed: " + str(self.opponent_objectives_completed), True, WHITE)
+        self.opponent_objectives_left_text = self.font.render("Opponent Objectives left: " + str(self.opponent_objectives_left),
+                                                              True, WHITE)
+        self.objectives_completed_text = self.font.render("Objectives completed: " + str(self.completed_objectives),
+                                                          True, WHITE)
+        self.objectives_left_text = self.font.render("Objectives left: " + str(self.objectives_left), True, WHITE)
+        self.objectives_total_text = self.font.render("Objectives total: " + str(self.total_objectives), True, WHITE)
+
+
 def genIPv4():
     ip = str(
         str(rnd.randint(172, 192)) + "." + str(rnd.randint(0, 255)) + "." + str(
@@ -897,7 +1062,7 @@ class Objective:
         # select a random folder to put the objective file in
         random_folder = list(self.folders.keys())[rnd.randint(0, len(self.folders) - 1)]
         self.target_file = File(RANDOM_WORDS_LIST[rnd.randint(0, len(RANDOM_WORDS_LIST) - 1)] + ".txt",
-                                "This is the objective file")
+                                "This is the RIGHT FILE")
         self.folders[random_folder].add_existing_file(self.target_file)
 
     def set_game(self, game):

@@ -5,7 +5,7 @@ __author__ = 'Yossi'
 
 SIZE_HEADER_FORMAT = "00000000~" # n digits for data size + one delimiter
 size_header_size = len(SIZE_HEADER_FORMAT)
-TCP_DEBUG = False
+TCP_DEBUG = True
 LEN_TO_PRINT = 100
 
 VER = 'Python3'
