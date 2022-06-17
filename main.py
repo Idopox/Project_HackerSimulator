@@ -343,16 +343,18 @@ class GameStates:
                 self.viscord_window.draw(display)
                 self.viscord_window.move()
 
+            if self.browser_window is not None:
+                if self.browser:
+                    self.browser_window.draw(display)
+                    self.browser_window.move()
+
             if self.terminal:
                 self.terminal_window.draw(display)
                 self.terminal_window.move()
                 if self.terminal_window.download_thread is not None and self.terminal_window.download_thread.is_alive() and not self.terminal_window.downloading:
                     self.terminal_window.download_thread.join()
 
-            if self.browser_window is not None:
-                if self.browser:
-                    self.browser_window.draw(display)
-                    self.browser_window.move()
+
 
         pygame.display.update()
 
@@ -375,21 +377,28 @@ class GameStates:
                     pygame.quit()
                     sys.exit()
                 if self.restart_button.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                    self.online = False
                     self.state = "intro"
                     all_to_die = False
         if self.online:
-            if self.won:
+            if self.won == "gameWon":
                 pygame.display.set_caption("YOU WON")
                 display.fill(GREEN)
                 self.restart_button.draw(display, pygame.mouse.get_pos())
                 win_text = self.main_font.render("YOU WON :)", True, BLACK)
                 display.blit(win_text, (WIDTH / 2 - win_text.get_width() / 2, 0))
-            else:
+            elif self.won == "gameLost":
                 pygame.display.set_caption("YOU LOST")
                 display.fill(RED)
                 self.restart_button.draw(display, pygame.mouse.get_pos())
                 lose_text = self.main_font.render("YOU LOST :(", True, BLACK)
                 display.blit(lose_text, (WIDTH / 2 - lose_text.get_width() / 2, 0))
+            elif self.won == "gameCorrupted":
+                pygame.display.set_caption("GAME CORRUPTED")
+                display.fill(BLUE)
+                self.restart_button.draw(display, pygame.mouse.get_pos())
+                corrupt_text = self.main_font.render("Sorry there was a problem with the server", True, BLACK)
+                display.blit(corrupt_text, (WIDTH / 2 - corrupt_text.get_width() / 2, 0))
         else:
             pygame.quit()
             sys.exit()
@@ -424,6 +433,7 @@ class Versus:
                     t.start()
                     self.threads.append(t)
             except ConnectionResetError:
+                self.game.won = "gameCorrupted"
                 self.game.state = "gameOver"
             except:
                 pass
@@ -507,13 +517,13 @@ class Versus:
         if message_code == "LOSE":
             self.game.state = "gameOver"
             self.game.game_started = False
-            self.game.won = False
+            self.game.won = "gameLost"
             print("You lost")
 
         if message_code == "WINN":
             self.game.state = "gameOver"
             self.game.game_started = False
-            self.game.won = True
+            self.game.won = "gameWon"
             print("You won")
 
         if message_code == "WAIT":
@@ -591,19 +601,19 @@ class Viscord(Application):
         self.contacts = {}
         self.contact1 = button.Button(self.sided_menu.topleft[0] + 3, self.sided_menu.topleft[1] + 3, "H04X", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["1"] = {"button": self.contact1, "chat": "", "name": "H04X", "objectives": []}
+        self.contacts["1"] = {"button": self.contact1, "chat": "", "name": "H04X", "objectives": [], "ip": []}
         self.contact2 = button.Button(self.sided_menu.topleft[0] + 3,
                                       self.sided_menu.topleft[1] + 3 + 47, "4L4K4Z4M", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["2"] = {"button": self.contact2, "chat": "", "name": "4L4K4Z4M", "objectives": []}
+        self.contacts["2"] = {"button": self.contact2, "chat": "", "name": "4L4K4Z4M", "objectives": [], "ip": []}
         self.contact3 = button.Button(self.sided_menu.topleft[0] + 3,
                                       self.sided_menu.topleft[1] + 3 + 47 * 2, "FL45H", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["3"] = {"button": self.contact3, "chat": "", "name": "FL45H", "objectives": []}
+        self.contacts["3"] = {"button": self.contact3, "chat": "", "name": "FL45H", "objectives": [], "ip": []}
         self.contact4 = button.Button(self.sided_menu.topleft[0] + 3,
                                       self.sided_menu.topleft[1] + 3 + 47 * 3, "CH405", WHITE, BG,
                                       self.header_font, False, BLACK, (244, 47))
-        self.contacts["4"] = {"button": self.contact4, "chat": "", "name": "CH405", "objectives": []}
+        self.contacts["4"] = {"button": self.contact4, "chat": "", "name": "CH405", "objectives": [], "ip": []}
         self.active_contact = None
 
     def draw(self, display):
@@ -813,24 +823,30 @@ class Terminal(Application):
                 for item in self.folder:
                     if item.name == input[4:]:
                         self.write(item.content)
+            # for example upload command usage: upload {contact name} {file name}@{ip}
             elif input[:7] == "upload ":
                 file_sent = False
+                contact_name = input[7:input.find(' ', 7)]
+                file_name = input[input.find(' ', 8) + 1:input.find('@')]
+                ip = input[input.find('@') + 1:]
                 for contact in self.game.viscord_window.contacts:
-                    if self.game.viscord_window.contacts[contact]["name"] == input[7:input.rfind(' ')]:
+                    if self.game.viscord_window.contacts[contact]["name"] == contact_name:
                         for item in self.folder:
-                            if item.name == input[input.rfind(' ') + 1:]:
-                                for objective in self.game.viscord_window.contacts[contact]["objectives"]:
-                                    if objective.target_file.name == item.name and objective.target_file.content == item.content:
-                                        if not self.game.online:
+                            if item.name == file_name and ip in self.game.viscord_window.contacts[contact][
+                                                                             "ip"]:
+                                if not self.game.online:
+                                    for objective in self.game.viscord_window.contacts[contact]["objectives"]:
+                                        if objective.target_file.name == item.name and objective.target_file.content == item.content and objective.ip == ip:
                                             objective.complete()
                                             self.write("File uploaded")
                                             self.folder.remove(item)
-                                        else:
-                                            self.versus.send_objective(item)
-                                            self.folder.remove(item)
-                                        file_sent = True
+                                            file_sent = True
+                                else:
+                                    self.versus.send_objective(item)
+                                    self.folder.remove(item)
+                                    file_sent = True
                 if not file_sent:
-                    self.write("File not found")
+                    self.write("File couldn't be uploaded")
 
             else:
                 self.write("Command not found")
@@ -1073,6 +1089,7 @@ class Objective:
         self.game.objectives.objectives.remove(self)
         self.game.viscord_window.contacts[self.contact]["chat"] += "Task Completed (" + str(self.ip) + ") \n"
         self.game.viscord_window.contacts[self.contact]["objectives"].remove(self)
+        self.game.viscord_window.contacts[self.contact]["ip"].remove(self.ip)
 
     def fail(self):
         self.completed = True
@@ -1097,6 +1114,7 @@ class Objective:
             "chat"] += "Hey there, Can you help me get a file that contains the text \"This is the RIGHT FILE\" from " \
                        "the ip: " + self.ip + "?\n "
         self.game.viscord_window.contacts[contact]["objectives"].append(self)
+        self.game.viscord_window.contacts[contact]["ip"].append(self.ip)
         self.contact = contact
 
 

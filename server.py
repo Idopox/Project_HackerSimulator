@@ -61,10 +61,11 @@ class MyButtons(wx.Dialog):
         self.objectives_amount_choose.ChangeValue("Server started with %s objectives" % amount)
         server.start_listen()
 
-    def on_close(self):
+    def on_close(self, event=None):
         global server
         global all_to_die
         all_to_die = True
+        self.log.AppendText("\nServer closed")
         if server is not None:
             for thread in server.threads:
                 thread.join(0.001)
@@ -84,7 +85,8 @@ class Server:
         self.players = {}
         self.players_data = []
         self.threads = []
-        self.objectives_sent = []
+        self.objectives_sent = {}
+        self.objectives_sent_amount = 0
         self.sent_all = False
         self.completed_objectives = {}
         self.objectives_amount = objective_amount
@@ -135,8 +137,8 @@ class Server:
                     t.start()
             except ConnectionResetError:
                 print("Connection reset by peer")
+                print("Please Click 'Close' to close the server")
                 all_to_die = True
-                self.wx_window.on_close()
                 break
             except:
                 pass
@@ -160,10 +162,10 @@ class Server:
     def check_file(self, file, player_id, sock):
         global all_to_die
         objective = None
-        for objective in self.objectives_sent:
+        for objective in self.objectives_sent[player_id]:
             if objective.check_if_objective_completed(file):
                 self.completed_objectives[player_id].append(objective)
-                self.objectives_sent.remove(objective)
+                self.objectives_sent[player_id].remove(objective)
                 sr.send_with_size(sock, b'COBJ~' + str(objective.ip).encode('utf-8'))
                 # send the other player message code "EOBJ"
                 for player in self.players:
@@ -202,14 +204,16 @@ class Server:
             code = b'NOBJ~'
             for player in self.players_data:
                 sr.send_with_size(player[1], code + to_send)
-            self.objectives_sent.append(objective)
-            if len(self.objectives_sent) == self.objectives_amount:
+                self.objectives_sent[player[0]].append(objective)
+            self.objectives_sent_amount += 1
+
+            if self.objectives_sent_amount == self.objectives_amount:
                 self.sent_all = True
                 while True:
                     if all_to_die:
-                        break
+                        return
                     for player_id in self.completed_objectives:
-                        if len(self.completed_objectives[player_id]) == self.objectives_amount:
+                        if len(self.completed_objectives[player_id]) == len(self.objectives_sent[player_id]):
                             sr.send_with_size(self.players_data[0][1] if self.players_data[0][0] == player_id else
                                               self.players_data[1][1], b'WINN~')
                             sr.send_with_size(
@@ -235,14 +239,15 @@ class Server:
                 player_id = len(self.players)
                 self.players[client_sock] = player_id
                 self.completed_objectives[player_id] = []
+                self.objectives_sent[player_id] = []
                 print("Client connected from: " + str(addr))
                 if len(self.players) == 2:
                     print("Two players connected\n")
                     self.send_wait()
                     self.start_game()
-                    break
+                    return  # stop accepting clients
             except:
-                pass
+                print(traceback.format_exc())
 
     def send_wait(self):
         for sock in self.players:
