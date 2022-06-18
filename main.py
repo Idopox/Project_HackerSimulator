@@ -65,6 +65,7 @@ class GameStates:
                                              LIGHT_BLUE_3)
 
         self.desktop = pygame.image.load("assets/images/desktop.jpg")
+        self.help = pygame.image.load("assets/images/help.png")
         self.viscord_button = button.ImageButton(32, HEIGHT / 2 - 100, "assets/images/viscord.png",
                                                  "assets/images/viscord_hover.png", (50, 50), True)
         self.terminal_button = button.ImageButton(32, HEIGHT / 2, "assets/images/terminal.png",
@@ -226,6 +227,15 @@ class GameStates:
                                 self.viscord_window.display_default_chat(display)
                                 self.viscord_window.active_contact = self.viscord_window.contacts[contact]
                                 self.viscord_window.display_contact_chat(contact, display)
+                    if self.viscord_window.help_contact.isOver((pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                        if str(self.viscord_window.active_contact) == "help":
+                            self.viscord_window.active_contact = None
+                            self.viscord_window.display_default_chat(display)
+                        else:
+                            self.viscord_window.display_default_chat(display)
+                            self.viscord_window.active_contact = "help"
+                            self.viscord_window.display_contact_chat("help", display)
+                            print("help")
                 if event.button == 3:
                     if self.terminal_window.active:
                         text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
@@ -323,6 +333,16 @@ class GameStates:
                                     self.viscord_window.display_default_chat(display)
                                     self.viscord_window.active_contact = self.viscord_window.contacts[contact]
                                     self.viscord_window.display_contact_chat(contact, display)
+                        if self.viscord_window.help_contact.isOver(
+                                (pygame.mouse.get_pos()[0], pygame.mouse.get_pos()[1])):
+                            if str(self.viscord_window.active_contact) == "help":
+                                self.viscord_window.active_contact = None
+                                self.viscord_window.display_default_chat(display)
+                            else:
+                                self.viscord_window.display_default_chat(display)
+                                self.viscord_window.active_contact = "help"
+                                self.viscord_window.display_contact_chat("help", display)
+                                print("help")
                     if event.button == 3:
                         if self.terminal_window.active:
                             text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
@@ -603,6 +623,7 @@ class Viscord(Application):
         self.contact_chat_rect = pygame.rect.Rect(self.sided_menu.topright[0], self.sided_menu.top,
                                                   self.application.right - self.sided_menu.right - 3,
                                                   self.application.bottom - self.header_rect.bottom - 3)
+        print(self.contact_chat_rect.width, self.contact_chat_rect.height)
         self.help_contact = button.Button(self.sided_menu.bottomleft[0] + 3,
                                           self.sided_menu.bottomleft[1] - 50, "HELP", BLACK, WHITE,
                                           self.header_font, False, GREEN, (244, 47))
@@ -625,6 +646,7 @@ class Viscord(Application):
                                       self.header_font, False, BLACK, (244, 47))
         self.contacts["4"] = {"button": self.contact4, "chat": "", "name": "CH405", "objectives": [], "ip": []}
         self.active_contact = None
+        self.help = self.game.help
 
     def draw(self, display):
         super().draw(display)
@@ -653,11 +675,13 @@ class Viscord(Application):
                     self.display_contact_chat(self.active_contact, display)
 
     def display_contact_chat(self, contact, display):
-
         self.contact_chat_rect.y = self.sided_menu.top
         self.contact_chat_rect.height = self.application.bottom - self.header_rect.bottom - 3
 
         if type(contact) is str:
+            if contact == "help":
+                display.blit(self.help, self.contact_chat_rect)
+                return
             chat = self.contacts[contact]["chat"]
         else:
             chat = contact["chat"]
