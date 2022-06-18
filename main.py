@@ -55,7 +55,7 @@ class GameStates:
         self.title_font = pygame.font.Font("assets/fonts/hackerchaos.otf", 200)
         self.title_text = self.title_font.render("Hacker Simulator", True, BLACK)
         self.main_font = pygame.font.Font("assets/fonts/main.otf", 60)
-        self.restart_button = button.Button(WIDTH / 2, HEIGHT / 2, "RESTART", BLACK, BG, self.main_font, True,
+        self.restart_button = button.Button(WIDTH / 2, HEIGHT / 2, "CLOSE", BLACK, BG, self.main_font, True,
                                             RED, (WIDTH / 2, HEIGHT / 2), 5, 3, BLACK)
         self.training_button = button.Button(WIDTH / 2, HEIGHT / 2 - 100, "TRAINING", BLACK, BG, self.main_font, True,
                                              LIGHT_BLUE_3)
@@ -121,6 +121,7 @@ class GameStates:
         self.game = Versus(self)
         self.terminal_window.versus = self.game
         self.browser_window = None
+        self.wait_for_opponent = True
 
     def state_manager(self):
 
@@ -284,7 +285,15 @@ class GameStates:
                 display.fill(BG)
                 self.EXIT_BUTTON.draw(display, pygame.mouse.get_pos())
                 self.join_button.draw(display, pygame.mouse.get_pos())
+        elif self.wait_for_opponent:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    self.state = "gameOver"
 
+
+                display.blit(self.desktop, (0, 0))
+                display.blit(self.main_font.render("Waiting for opponent...", True, BLACK), (10, 10))
+                pygame.display.update()
         else:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
@@ -527,6 +536,7 @@ class Versus:
             print("You won")
 
         if message_code == "WAIT":
+            self.game.wait_for_opponent = False
             self.send_name()
 
     def send_objective(self, file):

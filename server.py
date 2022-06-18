@@ -213,7 +213,7 @@ class Server:
                     if all_to_die:
                         return
                     for player_id in self.completed_objectives:
-                        if len(self.completed_objectives[player_id]) == len(self.objectives_sent[player_id]):
+                        if len(self.completed_objectives[player_id]) == self.objectives_sent_amount:
                             sr.send_with_size(self.players_data[0][1] if self.players_data[0][0] == player_id else
                                               self.players_data[1][1], b'WINN~')
                             sr.send_with_size(
