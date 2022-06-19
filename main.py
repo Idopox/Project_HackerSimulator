@@ -235,7 +235,6 @@ class GameStates:
                             self.viscord_window.display_default_chat(display)
                             self.viscord_window.active_contact = "help"
                             self.viscord_window.display_contact_chat("help", display)
-                            print("help")
                 if event.button == 3:
                     if self.terminal_window.active:
                         text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
@@ -342,7 +341,6 @@ class GameStates:
                                 self.viscord_window.display_default_chat(display)
                                 self.viscord_window.active_contact = "help"
                                 self.viscord_window.display_contact_chat("help", display)
-                                print("help")
                     if event.button == 3:
                         if self.terminal_window.active:
                             text = pygame.scrap.get(pygame.SCRAP_TEXT).decode("utf-8")[:-1]
@@ -623,7 +621,6 @@ class Viscord(Application):
         self.contact_chat_rect = pygame.rect.Rect(self.sided_menu.topright[0], self.sided_menu.top,
                                                   self.application.right - self.sided_menu.right - 3,
                                                   self.application.bottom - self.header_rect.bottom - 3)
-        print(self.contact_chat_rect.width, self.contact_chat_rect.height)
         self.help_contact = button.Button(self.sided_menu.bottomleft[0] + 3,
                                           self.sided_menu.bottomleft[1] - 50, "HELP", BLACK, WHITE,
                                           self.header_font, False, GREEN, (244, 47))
