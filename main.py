@@ -1,4 +1,4 @@
-# Author: Ido Barkan
+__author__ = 'Ido Barkan'
 # Hacker Simulator Game - Project
 import pickle
 import random as rnd

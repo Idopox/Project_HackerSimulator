@@ -1,4 +1,5 @@
-# server for the game
+__author__ = 'Ido Barkan'
+
 import pickle
 import socket
 import sys
